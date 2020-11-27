@@ -7,7 +7,7 @@
 /**
  * A configuration object to initialize Datadog's features.
  */
-export class DatadogConfiguration {
+export class DdSdkConfiguration {
   constructor(
     readonly clientToken: string,
     readonly env: string,
@@ -18,7 +18,7 @@ export class DatadogConfiguration {
 /**
  * The entry point to initialize Datadog's features.
  */
-export type DatadogType = {
+export type DdSdkType = {
   /**
    * Initializes Datadog's features.
    * configuration: The configuration to use.
