@@ -9,14 +9,14 @@ import Foundation
 
 extension NSDictionary {
 
-    func asDdSdkConfiguration() -> DdSdkConfiguration {
-        let clientToken = object(forKey: "clientToken") as? NSString
-        let env = object(forKey: "env") as? NSString
-        let applicationId = object(forKey: "applicationId") as? NSString
-        return DdSdkConfiguration(
-            clientToken: (clientToken != nil) ? clientToken! : NSString(),
-            env: (env != nil) ? env! : NSString(),
-            applicationId: applicationId
-        )
-    }
+//    func asDdSdkConfiguration() -> DdSdkConfiguration {
+//        let clientToken = object(forKey: "clientToken") as? NSString
+//        let env = object(forKey: "env") as? NSString
+//        let applicationId = object(forKey: "applicationId") as? NSString
+//        return DdSdkConfiguration(
+//            clientToken: (clientToken != nil) ? clientToken! : NSString(),
+//            env: (env != nil) ? env! : NSString(),
+//            applicationId: applicationId
+//        )
+//    }
 }

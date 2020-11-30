@@ -1,5 +1,5 @@
 platform :ios, '11.0'
-use_frameworks! :linkage => :static
+use_frameworks!
 require_relative '../node_modules/@react-native-community/cli-platform-ios/native_modules'
 
 def add_flipper_pods!
@@ -54,6 +54,7 @@ target 'DdSdkReactNativeExample' do
   pod 'glog', :podspec => '../node_modules/react-native/third-party-podspecs/glog.podspec'
   pod 'Folly', :podspec => '../node_modules/react-native/third-party-podspecs/Folly.podspec'
 
+  pod 'DatadogSDK', :path => '../../../dd-sdk-ios/DatadogSDK.podspec'
   pod 'dd-sdk-reactnative', :path => '../..'
 
   use_native_modules!

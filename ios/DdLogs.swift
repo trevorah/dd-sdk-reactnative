@@ -5,33 +5,34 @@
  */
 
 import Foundation
+import Datadog
 
 @objc(DdLogs)
 class RNDdLogs: NSObject {
 
-    let nativeInstance = DdLogs()
+//    let nativeInstance = Logger.initalize
 
     @objc(debug:withContext:withResolver:withRejecter:)
     func debug(message: NSString, context: NSDictionary, resolve:RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
-        nativeInstance.debug(message: message, context: context)
+//        nativeInstance.debug(message: message, context: context)
         resolve(nil)
     }
 
     @objc(info:withContext:withResolver:withRejecter:)
     func info(message: NSString, context: NSDictionary, resolve:RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
-        nativeInstance.info(message: message, context: context)
+//        nativeInstance.info(message: message, context: context)
         resolve(nil)
     }
 
     @objc(warn:withContext:withResolver:withRejecter:)
     func warn(message: NSString, context: NSDictionary, resolve:RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
-        nativeInstance.warn(message: message, context: context)
+//        nativeInstance.warn(message: message, context: context)
         resolve(nil)
     }
 
     @objc(error:withContext:withResolver:withRejecter:)
     func error(message: NSString, context: NSDictionary, resolve:RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
-        nativeInstance.error(message: message, context: context)
+//        nativeInstance.error(message: message, context: context)
         resolve(nil)
     }
 

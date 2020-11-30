@@ -9,11 +9,11 @@ import Foundation
 @objc(DdSdk)
 class RNDdSdk: NSObject {
 
-    let nativeInstance = DdSdk()
+//    let nativeInstance = RNDdSdk()
 
     @objc(initialize:withResolver:withRejecter:)
     func initialize(configuration: NSDictionary, resolve:RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
-        nativeInstance.initialize(configuration: configuration.asDatadogConfiguration())
+//        nativeInstance.initialize(configuration: configuration.asDatadogConfiguration())
         resolve(nil)
     }
 
