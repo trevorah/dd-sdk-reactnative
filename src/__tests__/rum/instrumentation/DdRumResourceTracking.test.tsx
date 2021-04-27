@@ -29,7 +29,6 @@ jest.mock('../../../foundation', () => {
     };
 });
 
-
 class XMLHttpRequest {
 
     static readonly UNSENT = 0;
@@ -65,6 +64,11 @@ class XMLHttpRequest {
         this.status = 0
     }
 
+    notifyLoading() {
+        this.readyState = XMLHttpRequest.LOADING
+        this.onreadystatechange()
+    }
+
     complete(status: number, response?: string) {
         this.response = response
         this.status = status
@@ -77,21 +81,26 @@ class XMLHttpRequest {
     }
 }
 
-
-let originalOpen: Function
-let originalSend: Function
-
 const flushPromises = () => new Promise(setImmediate);
 
 beforeEach(() => {
     DdRum.startResource.mockClear();
     DdRum.stopResource.mockClear();
 
+    // we need this because with ms precision between Date.now() calls we can get 0, so we advance
+    // it manually with each call
+    let now = Date.now()
+    jest.spyOn(Date, 'now').mockImplementation(() => {
+        now += 5
+        return now
+    })
+
     jest.setTimeout(20000);
 })
 
 afterEach(() => {
     DdRumResourceTracking.stopTracking();
+    Date.now.mockClear();
 })
 
 
@@ -105,6 +114,7 @@ it('M intercept XHR request W startTracking() + XHR.open() + XHR.send()', async 
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -133,6 +143,7 @@ it('M intercept failing XHR request W startTracking() + XHR.open() + XHR.send()'
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(500, 'error');
     await flushPromises();
 
@@ -191,6 +202,7 @@ it('M add the span id in the request headers W startTracking() + XHR.open() + XH
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -210,6 +222,7 @@ it('M add the trace id in the request headers W startTracking() + XHR.open() + X
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -229,6 +242,7 @@ it('M generate different ids for spanId and traceId in request headers', async (
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -248,6 +262,7 @@ it('M add origin as RUM in the request headers W startTracking() + XHR.open() + 
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -265,6 +280,7 @@ it('M add the span id as resource attributes W startTracking() + XHR.open() + XH
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -284,6 +300,7 @@ it('M add the trace id as resource attributes W startTracking() + XHR.open() + X
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -303,6 +320,7 @@ it('M generate different ids for spanId and traceId for resource attributes', as
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.send();
+    xhr.notifyLoading();
     xhr.complete(200, 'ok');
     await flushPromises();
 
@@ -310,4 +328,73 @@ it('M generate different ids for spanId and traceId for resource attributes', as
     const traceId = DdRum.startResource.mock.calls[0][4]["_dd.trace_id"];
     const spanId = DdRum.startResource.mock.calls[0][4]["_dd.span_id"];
     expect(traceId !== spanId).toBeTruthy();
+})
+
+it('M generate resource timings W startTracking() + XHR.open() + XHR.send()', async () => {
+    // GIVEN
+    let method = "GET"
+    let url = "https://api.example.com/v2/user"
+    DdRumResourceTracking.startTrackingInternal(XMLHttpRequest);
+
+    // WHEN
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    xhr.send();
+    xhr.notifyLoading();
+    xhr.complete(200, 'ok');
+    await flushPromises();
+
+    // THEN
+    const timings = DdRum.stopResource.mock.calls[0][4]["_dd.timings"];
+
+    expect(timings['firstByte']['startTime']).toBe(0)
+    expect(timings['firstByte']['duration']).toBeGreaterThan(0)
+
+    expect(timings['download']['startTime']).toBeGreaterThan(0)
+    expect(timings['download']['duration']).toBeGreaterThan(0)
+})
+
+it('M generate resource timings W startTracking() + XHR.open() + XHR.send() + XHR.abort()', async () => {
+    // GIVEN
+    let method = "GET"
+    let url = "https://api.example.com/v2/user"
+    DdRumResourceTracking.startTrackingInternal(XMLHttpRequest);
+
+    // WHEN
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    xhr.send();
+    xhr.notifyLoading();
+    xhr.abort();
+    xhr.complete(0, undefined);
+    await flushPromises();
+
+    // THEN
+    const timings = DdRum.stopResource.mock.calls[0][4]["_dd.timings"];
+
+    expect(timings['firstByte']['startTime']).toBe(0)
+    expect(timings['firstByte']['duration']).toBeGreaterThan(0)
+
+    expect(timings['download']['startTime']).toBeGreaterThan(0)
+    expect(timings['download']['duration']).toBeGreaterThan(0)
+})
+
+it('M not generate resource timings W startTracking() + XHR.open() + XHR.send() + XHR.abort() before load started', async () => {
+    // GIVEN
+    let method = "GET"
+    let url = "https://api.example.com/v2/user"
+    DdRumResourceTracking.startTrackingInternal(XMLHttpRequest);
+
+    // WHEN
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    xhr.send();
+    xhr.abort();
+    xhr.complete(0, undefined);
+    await flushPromises();
+
+    // THEN
+    const attributes = DdRum.stopResource.mock.calls[0][4];
+
+    expect(attributes['_dd.timings']).toBeNull()
 })

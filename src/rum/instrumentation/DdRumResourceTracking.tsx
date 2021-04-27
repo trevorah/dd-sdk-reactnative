@@ -5,13 +5,65 @@
  */
 
 import { DdRum } from '../../foundation'
-import type { DdRumXhr } from './DdRumXhr'
+import type { DdRumXhr, DdRumXhrContext } from './DdRumXhr'
 import { generateTraceId } from './TraceIdentifier';
 
 export const TRACE_ID_HEADER_KEY = "x-datadog-trace-id"
 export const PARENT_ID_HEADER_KEY = "x-datadog-parent-id"
 export const ORIGIN_HEADER_KEY = "x-datadog-origin"
 export const ORIGIN_RUM = "rum"
+
+const MISSING_TIME = -1
+
+type Duration = number & { d: 'Duration in ms' }
+type ServerDuration = number & { s: 'Duration in ns' }
+
+interface Timing {
+  startTime: ServerDuration
+  duration: ServerDuration
+}
+
+interface ResourceTimings {
+  // unlike in Performance API it is not the time until request
+  // starts (requestStart, before it can be connect, SSL, DNS),
+  // but the time until the response is first seen
+  firstByte: Timing,
+  download: Timing,
+}
+
+function createTimings(requestContext: DdRumXhrContext, responseEndTime: number): ResourceTimings | null {
+  const {
+    startTime,
+    loadStartTime
+  } = requestContext
+
+  if (startTime === MISSING_TIME || loadStartTime === MISSING_TIME) {
+    return null
+  }
+
+  const firstByte = formatTiming(startTime, startTime, loadStartTime)
+  const download = formatTiming(startTime, loadStartTime, responseEndTime)
+
+  return {
+    firstByte,
+    download
+  }
+}
+
+function formatTiming(origin: number, start: number, end: number): Timing {
+  return {
+    duration: toServerDuration((end - start) as Duration),
+    startTime: toServerDuration((start - origin) as Duration),
+  }
+}
+
+function toServerDuration(duration: Duration) {
+  return round(duration * 1e6, 0) as ServerDuration
+}
+
+function round(num: number, decimals: 0 | 1 | 2 | 3 | 4) {
+  return +num.toFixed(decimals)
+}
 
 /**
 * Provides RUM auto-instrumentation feature to track resources (fetch, XHR, axios) as RUM events.
@@ -73,7 +125,8 @@ export class DdRumResourceTracking {
       const traceId = generateTraceId()
       this._datadog_xhr = {
         method,
-        startTime: -1,
+        startTime: MISSING_TIME,
+        loadStartTime: MISSING_TIME,
         url: url,
         reported: false,
         spanId: spanId,
@@ -91,7 +144,7 @@ export class DdRumResourceTracking {
 
       if (this._datadog_xhr) {
         // keep track of start time
-        this._datadog_xhr.startTime = Date.now();
+        this._datadog_xhr.startTime = Date.now()
         this.setRequestHeader(TRACE_ID_HEADER_KEY, this._datadog_xhr.traceId)
         this.setRequestHeader(PARENT_ID_HEADER_KEY, this._datadog_xhr.spanId)
         this.setRequestHeader(ORIGIN_HEADER_KEY, ORIGIN_RUM)
@@ -114,6 +167,9 @@ export class DdRumResourceTracking {
           DdRumResourceTracking.reportXhr(xhrProxy);
           xhrProxy._datadog_xhr.reported = true;
         }
+      } else if (xhrProxy.readyState === xhrType.LOADING
+        && xhrProxy._datadog_xhr.loadStartTime === MISSING_TIME) {
+        xhrProxy._datadog_xhr.loadStartTime = Date.now()
       }
 
       if (originalOnreadystatechange) {
@@ -124,18 +180,33 @@ export class DdRumResourceTracking {
   }
 
   private static reportXhr(xhrProxy: DdRumXhr): void {
-    const key = xhrProxy._datadog_xhr.startTime + "/" + xhrProxy._datadog_xhr.method + "/" + xhrProxy._datadog_xhr.startTime
+
+    const context = xhrProxy._datadog_xhr
+
+    const key = context.startTime + "/"
+      + context.method + "/"
+      + context.startTime
+
+    const responseEndTime = Date.now()
+
     DdRum.startResource(
       key,
-      xhrProxy._datadog_xhr.method,
-      xhrProxy._datadog_xhr.url,
-      xhrProxy._datadog_xhr.startTime,
+      context.method,
+      context.url,
+      context.startTime,
       {
-        "_dd.span_id": xhrProxy._datadog_xhr.spanId,
-        "_dd.trace_id": xhrProxy._datadog_xhr.traceId
+        "_dd.span_id": context.spanId,
+        "_dd.trace_id": context.traceId
       }
     ).then(() => {
-      DdRum.stopResource(key, xhrProxy.status, "xhr", Date.now(), {});
+      DdRum.stopResource(
+        key,
+        xhrProxy.status,
+        "xhr",
+        responseEndTime,
+        {
+          "_dd.timings": createTimings(context, responseEndTime),
+        });
     })
   }
 
